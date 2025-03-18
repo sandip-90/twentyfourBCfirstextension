@@ -80,7 +80,7 @@ report 50371 "Report Email"
                         ApplicationArea = All;
                         Caption = 'Vendor No.';
                         TableRelation = Vendor;
-                        //Visible = showVendorField;
+                        Visible = showVendorField;
                     }
                 }
             }
