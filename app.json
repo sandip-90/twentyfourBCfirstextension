@@ -10,7 +10,14 @@
   "help": "",
   "url": "",
   "logo": "",
-  "dependencies": [],
+  "dependencies": [
+    {
+      "id": "07c9063f-5a1c-45fa-860f-30d83851f306",
+      "name": "Dynamics365HRMS",
+      "publisher": "Agile Solutions Pvt. Ltd.",
+      "version": "1.0.0.0"
+    }
+  ],
   "screenshots": [],
   "platform": "1.0.0.0",
   "application": "24.0.0.0",

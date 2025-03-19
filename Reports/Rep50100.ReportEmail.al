@@ -41,23 +41,12 @@ report 50371 "Report Email"
                     {
                         Caption = 'Select a Report';
                         ApplicationArea = All;
-                        trigger OnValidate()
-                        begin
-                            UpdateFieldVisibility();
-                        end;
                     }
                     field(EmailAddressField; Emailaddress)
                     {
                         ApplicationArea = all;
                         Caption = 'Email Address';
-                        ExtendedDatatype = EMail;
-
-                        trigger OnValidate()
-                        var
-                            EmailAccount: Codeunit "Email Account";
-                        begin
-                            EmailAccount.ValidateEmailAddresses(Emailaddress);
-                        end;
+                        //ExtendedDatatype = EMail;
                     }
                     field("Starting Date"; startDate)
                     {
@@ -72,7 +61,6 @@ report 50371 "Report Email"
                         ApplicationArea = All;
                         Caption = 'Customer No.';
                         TableRelation = Customer;
-                        // Visible = showCustomerField;
 
                     }
                     field(VendorNo; VendorNo)
@@ -80,7 +68,6 @@ report 50371 "Report Email"
                         ApplicationArea = All;
                         Caption = 'Vendor No.';
                         TableRelation = Vendor;
-                        Visible = showVendorField;
                     }
                 }
             }
@@ -102,19 +89,6 @@ report 50371 "Report Email"
         VendorNo: Code[20];
         showCustomerField: Boolean;
         showVendorField: Boolean;
-
-    local procedure UpdateFieldVisibility()
-    begin
-        ShowCustomerField := SelectedReport in [
-            SelectedReport::"Customer Trial Balance Report",
-            SelectedReport::"Customer Detail Trial Balance Report"
-        ];
-
-        ShowVendorField := SelectedReport in [
-            SelectedReport::"Vendor Trial Balance Report",
-            SelectedReport::"Vendor Detail Trial Balance Report"
-        ];
-    end;
 
     local procedure GetReportID(ReportSelection: Enum "Report Selection"): Integer
     begin
@@ -173,32 +147,28 @@ report 50371 "Report Email"
                     if not GLAccount.FindSet() then
                         Error('No G/L Account records found for the selected date range (%1 to %2).', startDate, endDate);
 
-                    REPORT.Run(ReportID, true, false, GLAccount);
+                    //REPORT.Run(ReportID, true, false, GLAccount);
                 end;
             Report::"Vendor - Detail Trial Balance", Report::"Vendor - Trial Balance":
                 begin
-                    if VendorNo = '' then
-                        Error('Please select a Vendor');
-
                     Vendor.Reset();
                     Vendor.SetFilter("Date Filter", DateFilterText);
+                    Vendor.SetFilter("No.", VendorNo);
                     if not Vendor.FindSet() then
                         Error('No Vendor records found for the selected date range (%1 to %2).', startDate, endDate);
 
-                    REPORT.Run(ReportID, true, false, Vendor);
+                    // REPORT.Run(ReportID, true, false, Vendor);
                 end;
             Report::"Customer - Detail Trial Bal.", Report::"Customer - Trial Balance":
                 begin
-                    if CustomerNo = '' then
-                        Error('Please select a Customer');
-
                     Customer.Reset();
                     Customer.Get(CustomerNo);
                     Customer.SetFilter("Date Filter", DateFilterText);
+                    Customer.SetFilter("No.", CustomerNo);
                     if not Customer.FindSet() then
                         Error('No Customer records found for the selected date range (%1 to %2).', startDate, endDate);
 
-                    REPORT.Run(ReportID, true, false, Customer);
+                    //REPORT.Run(ReportID, true, false, Customer);
                 end;
             else
                 Error('Invalid report ID: %1', ReportID);
@@ -209,6 +179,7 @@ report 50371 "Report Email"
     var
         TempBlob: Codeunit "Temp Blob";
         Email: Codeunit Email;
+        Emails: Text;
         EmailMessage: Codeunit "Email Message";
         InStr: InStream;
         OutStr: OutStream;
@@ -222,6 +193,8 @@ report 50371 "Report Email"
         CompanyInfo: Record "Company Information";
         CompanyName: Text;
         EntityName: Text;
+        EmailTemplate: Record "Email Template";
+        EmailList: List of [Text];
     begin
         DateFilterText := Format(startDate) + '..' + Format(endDate);
 
@@ -242,10 +215,9 @@ report 50371 "Report Email"
                 end;
             Report::"Vendor - Detail Trial Balance", Report::"Vendor - Trial Balance":
                 begin
-                    Vendor.Get(VendorNo);
-                    EntityName := Vendor.Name;
                     Vendor.Reset();
                     Vendor.SetFilter("Date Filter", DateFilterText);
+                    Vendor.SetFilter("No.", VendorNo);
                     if not Vendor.FindSet() then
                         Error('No Vendor records found for the selected date range (%1 to %2).', startDate, endDate);
                     RecRef.GetTable(Vendor);
@@ -253,10 +225,9 @@ report 50371 "Report Email"
                 end;
             Report::"Customer - Detail Trial Bal.", Report::"Customer - Trial Balance":
                 begin
-                    Customer.Get(CustomerNo);
-                    EntityName := Customer.Name;
                     Customer.Reset();
                     Customer.SetFilter("Date Filter", DateFilterText);
+                    Customer.SetFilter("No.", CustomerNo);
                     if not Customer.FindSet() then
                         Error('No Customer records found for the selected date range (%1 to %2).', startDate, endDate);
                     RecRef.GetTable(Customer);
@@ -270,11 +241,19 @@ report 50371 "Report Email"
             Error('Failed to generate the PDF report. Please check your data and report settings.');
 
         // Step 2: Create email with attachment
-        FileName := GetReportFileName(SelectedReport) + '.pdf';
-        EmailMessage.Create(Emailaddress,
-            StrSubstNo('Report: %1', GetReportFileName(SelectedReport)),
-            StrSubstNo('Please find attached pdf of the %1 for the period %2 to %3 of %4.',
-                GetReportFileName(SelectedReport), startDate, endDate, EntityName));
+        // FileName := GetReportFileName(SelectedReport) + '.pdf';
+        // EmailMessage.Create(Emailaddress,
+        //     StrSubstNo('Report: %1', GetReportFileName(SelectedReport)),
+        //     StrSubstNo('Please find attached pdf of the %1 for the period %2 to %3.',
+        //         GetReportFileName(SelectedReport), startDate, endDate));
+
+        EmailList := Emailaddress.Split(';');
+        EmailMessage.Create('', StrSubstNo('Report: %1', GetReportFileName(SelectedReport)),
+            StrSubstNo('Please find attached pdf of the %1 for the period %2 to %3.',
+                GetReportFileName(SelectedReport), startDate, endDate));
+
+        foreach Emails in EmailList do
+            EmailMessage.AddRecipient(Enum::"Email Recipient Type"::To, Emails.Trim());
 
         TempBlob.CreateInStream(InStr);
         EmailMessage.AddAttachment(FileName, 'application/pdf', InStr);
@@ -282,7 +261,7 @@ report 50371 "Report Email"
         if not Email.Send(EmailMessage, Enum::"Email Scenario"::Default) then
             Error('Failed to send email: %1', GetLastErrorText());
 
-        Message('Report %1 sent to %2 successfully.', GetReportFileName(SelectedReport), Emailaddress);
+        Message('Report %1 sent to  %2 successfully.', GetReportFileName(SelectedReport), Emailaddress);
     end;
 
     local procedure GetReportFilter(ReportID: Integer; var RecordRef: RecordRef): Text
@@ -300,7 +279,7 @@ report 50371 "Report Email"
                     GLAccount.Reset();
                     GLAccount.SetFilter("Date Filter", DateFilterText);
                     if not GLAccount.FindSet() then
-                        exit('');
+                        exit('could not find any records');
 
                     RecordRef.GetTable(GLAccount);
                 end;
@@ -308,8 +287,9 @@ report 50371 "Report Email"
                 begin
                     Vendor.Reset();
                     Vendor.SetFilter("Date Filter", DateFilterText);
+                    Vendor.SetFilter("No.", VendorNo);
                     if not Vendor.FindSet() then
-                        exit('');
+                        exit('Could not find any records');
 
                     RecordRef.GetTable(Vendor);
                 end;
@@ -317,8 +297,9 @@ report 50371 "Report Email"
                 begin
                     Customer.Reset();
                     Customer.SetFilter("Date Filter", DateFilterText);
+                    Customer.SetFilter("No.", CustomerNo);
                     if not Customer.FindSet() then
-                        exit('');
+                        exit('Could not find any records');
 
                     RecordRef.GetTable(Customer);
                 end;
@@ -334,27 +315,31 @@ enum 50371 "Report Selection"
 {
     Extensible = true;
 
-    value(0; "Trial Balance Report")
+    value(0; "empty")
+    {
+        Caption = '';
+    }
+    value(1; "Trial Balance Report")
     {
         Caption = 'Trial Balance Report';
     }
-    value(1; "Detail Trial Balance Report")
+    value(2; "Detail Trial Balance Report")
     {
         Caption = 'Detail Trial Balance Report';
     }
-    value(2; "Vendor Trial Balance Report")
+    value(3; "Vendor Trial Balance Report")
     {
         Caption = 'Vendor Trial Balance Report';
     }
-    value(3; "Vendor Detail Trial Balance Report")
+    value(4; "Vendor Detail Trial Balance Report")
     {
         Caption = 'Vendor Detail Trial Balance Report';
     }
-    value(4; "Customer Trial Balance Report")
+    value(5; "Customer Trial Balance Report")
     {
         Caption = 'Customer Trial Balance Report';
     }
-    value(5; "Customer Detail Trial Balance Report")
+    value(6; "Customer Detail Trial Balance Report")
     {
         Caption = 'Customer Detail Trial Balance Report';
     }
