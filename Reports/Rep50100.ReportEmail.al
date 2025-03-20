@@ -47,6 +47,10 @@ report 50371 "Report Email"
                         ApplicationArea = all;
                         Caption = 'Email Address';
                         //ExtendedDatatype = EMail;
+                        trigger OnValidate()
+                        begin
+                            ValidateEmail();
+                        end;
                     }
                     field("Starting Date"; startDate)
                     {
@@ -240,20 +244,12 @@ report 50371 "Report Email"
         if not Success then
             Error('Failed to generate the PDF report. Please check your data and report settings.');
 
-        // Step 2: Create email with attachment
-        // FileName := GetReportFileName(SelectedReport) + '.pdf';
-        // EmailMessage.Create(Emailaddress,
-        //     StrSubstNo('Report: %1', GetReportFileName(SelectedReport)),
-        //     StrSubstNo('Please find attached pdf of the %1 for the period %2 to %3.',
-        //         GetReportFileName(SelectedReport), startDate, endDate));
-
-        EmailList := Emailaddress.Split(';');
-        EmailMessage.Create('', StrSubstNo('Report: %1', GetReportFileName(SelectedReport)),
+        //Step 2: Create email with attachment
+        FileName := GetReportFileName(SelectedReport) + '.pdf';
+        EmailMessage.Create(Emailaddress,
+            StrSubstNo('Report: %1', GetReportFileName(SelectedReport)),
             StrSubstNo('Please find attached pdf of the %1 for the period %2 to %3.',
                 GetReportFileName(SelectedReport), startDate, endDate));
-
-        foreach Emails in EmailList do
-            EmailMessage.AddRecipient(Enum::"Email Recipient Type"::To, Emails.Trim());
 
         TempBlob.CreateInStream(InStr);
         EmailMessage.AddAttachment(FileName, 'application/pdf', InStr);
@@ -262,6 +258,43 @@ report 50371 "Report Email"
             Error('Failed to send email: %1', GetLastErrorText());
 
         Message('Report %1 sent to  %2 successfully.', GetReportFileName(SelectedReport), Emailaddress);
+    end;
+
+    local procedure ValidateEmail()
+    var
+        MailManagement: Codeunit "Mail Management";
+        IsHandled: Boolean;
+    begin
+        // IsHandled := false;
+        // OnBeforeValidateEmail(IsHandled);
+        // if IsHandled then
+        //     exit;
+
+        if Emailaddress = '' then
+            exit;
+        MailManagement.CheckValidEmailAddresses(Emailaddress);
+    end;
+
+    local procedure CheckValidateEmailAddress(Recipient: Text[100])
+    var
+        TemRecipitent: Text;
+        IsHandled: Boolean;
+
+    begin
+        //     IsHandled := false;
+        // OnBeforeCheckValidateEmailFields(Recipient, IsHandled);
+        // if IsHandled then
+        //  exit;
+
+        if Recipient = '' then
+            Error('Please enter a valid email address.');
+
+        TemRecipitent := DelChr(Recipient, '<>', ';');
+        while StrPos(TemRecipitent, ';') > 1 do begin
+            CheckValidateEmailAddress(CopyStr(TemRecipitent, 1, StrPos(TemRecipitent, ';') - 1));
+            TemRecipitent := CopyStr(TemRecipitent, StrPos(TemRecipitent, ';') + 1);
+        end;
+        CheckValidateEmailAddress(TemRecipitent);
     end;
 
     local procedure GetReportFilter(ReportID: Integer; var RecordRef: RecordRef): Text
