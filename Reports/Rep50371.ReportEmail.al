@@ -86,7 +86,7 @@ report 50371 "Report Email"
 
     var
         SelectedReport: Enum "Report Selection";
-        Emailaddress: Text[100];
+        Emailaddress: Text[500];
         startDate: Date;
         endDate: Date;
         CustomerNo: Code[20];
